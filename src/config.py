@@ -27,7 +27,13 @@ class PreTrainConfig:
     n_embd: int = 128
     n_head: int = 4
     n_layer: int = 4
-    dropout: float = 0.2
+    dropout: float = 0.0  # Reduced from 0.2 - modern LLMs use little/no dropout
+
+    # Optimizer settings (Muon)
+    optimizer: str = "muon"  # Options: "muon" or "adamw"
+    weight_decay: float = 0.1
+    momentum: float = 0.95  # For Muon's momentum SGD
+    lr_1d: float = 0.1  # Learning rate multiplier for 1D/embedding params
 
     # System (device determined at runtime)
     device: str = 'cpu'
@@ -36,6 +42,8 @@ class PreTrainConfig:
     data_path: str = 'kanye_raw.txt'
     model_path: str = 'models/kanye_base.pth'
     meta_path: str = 'models/meta.pkl'
+    losses_dir: str = 'models/losses'
+    best_model_dir: str = 'models/best'
 
     def __post_init__(self):
         """Set device after initialization."""
