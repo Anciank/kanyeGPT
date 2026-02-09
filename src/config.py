@@ -17,23 +17,23 @@ class PreTrainConfig:
 
     # Training
     batch_size: int = 64
-    block_size: int = 128
+    block_size: int = 64
     max_iters: int = 3000
-    learning_rate: float = 3e-4
+    learning_rate: float = 6e-4
     eval_interval: int = 500
     eval_iters: int = 200
 
     # Model architecture
-    n_embd: int = 128
-    n_head: int = 4
-    n_layer: int = 4
+    n_embd: int = 64
+    n_head: int = 2
+    n_layer: int = 2
     dropout: float = 0.0  # Reduced from 0.2 - modern LLMs use little/no dropout
 
     # Optimizer settings (Muon)
-    optimizer: str = "muon"  # Options: "muon" or "adamw"
+    optimizer: str = "adamw"  # Options: "muon" or "adamw"
     weight_decay: float = 0.1
     momentum: float = 0.95  # For Muon's momentum SGD
-    lr_1d: float = 0.1  # Learning rate multiplier for 1D/embedding params
+    lr_1d: float = 0.05  # Learning rate multiplier for 1D/embedding params
 
     # System (device determined at runtime)
     device: str = 'cpu'

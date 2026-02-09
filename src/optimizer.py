@@ -15,8 +15,7 @@ Based on the Muon optimizer from the Modded NanoGPT project.
 
 import torch
 import torch.optim as optim
-from typing import Optional, List, Iterable
-from collections import defaultdict
+from typing import Optional, Iterable
 
 
 class Muon(optim.Optimizer):
@@ -98,9 +97,7 @@ class Muon(optim.Optimizer):
 
                 # Determine parameter type and update strategy
                 is_2d = p.ndim == 2
-                is_embedding = p.ndim == 2 and "embed" in "".join(
-                    [n for n, _ in p.named_parameters()]
-                ).lower() if hasattr(p, "named_parameters") else False
+                is_embedding = group.get("is_embedding", False)
 
                 if is_2d and not is_embedding:
                     # --- 2D parameters: Momentum SGD with weight decay ---
@@ -121,10 +118,12 @@ class Muon(optim.Optimizer):
 
                     # Apply Nesterov momentum if enabled
                     if nesterov:
-                        grad = grad.add(buf, alpha=momentum)
+                        update = grad.add(buf, alpha=momentum)
+                    else:
+                        update = buf
 
                     # Apply gradient step
-                    p.add_(buf, alpha=-lr)
+                    p.add_(update, alpha=-lr)
 
                 else:
                     # --- 1D/embedding parameters: Adam-style update ---
@@ -188,8 +187,35 @@ def get_optimizer(
         Configured optimizer instance
     """
     if optimizer_name.lower() == "muon":
+        embedding_param_ids = set()
+        for module in model.modules():
+            if isinstance(module, torch.nn.Embedding):
+                for p in module.parameters(recurse=False):
+                    embedding_param_ids.add(id(p))
+
+        embedding_params = []
+        one_d_params = []
+        two_d_params = []
+        for _, p in model.named_parameters():
+            if not p.requires_grad:
+                continue
+            if id(p) in embedding_param_ids:
+                embedding_params.append(p)
+            elif p.ndim < 2:
+                one_d_params.append(p)
+            else:
+                two_d_params.append(p)
+
+        param_groups = []
+        if two_d_params:
+            param_groups.append({"params": two_d_params})
+        if one_d_params:
+            param_groups.append({"params": one_d_params, "wd": 0.0})
+        if embedding_params:
+            param_groups.append({"params": embedding_params, "is_embedding": True, "wd": 0.0})
+
         return Muon(
-            model.parameters(),
+            param_groups if param_groups else model.parameters(),
             lr=learning_rate,
             wd=weight_decay,
             **kwargs
@@ -199,7 +225,6 @@ def get_optimizer(
             model.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay,
-            **kwargs
         )
     else:
         raise ValueError(f"Unknown optimizer: {optimizer_name}. Use 'muon' or 'adamw'")

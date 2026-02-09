@@ -7,10 +7,23 @@ creating a "base model" that can later be fine-tuned on synthetic data.
 
 import json
 import sys
+import os
 from pathlib import Path
+from datetime import datetime
 
 import torch
 from torch.nn import functional as F
+import wandb
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key.strip(), value.strip())
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
@@ -18,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 from config import PreTrainConfig
 from model import GPTLanguageModel
 from data import TextDataset
-from optimizer import Muon, get_optimizer
+from optimizer import get_optimizer
 
 
 def print_separator(char: str = "=", length: int = 60):
@@ -42,12 +55,7 @@ class Trainer:
     - Loss data persistence to JSON for analysis
     - Best model saving with iteration-based naming
     - Periodic evaluation on train/validation sets
-
-    TODO: You can extend this class to add:
-    - Learning rate scheduling (cosine decay, warmup)
-    - Gradient clipping for training stability
-    - Early stopping based on validation loss
-    - TensorBoard/WandB logging
+    - Weights & Biases logging for visualization
     """
 
     def __init__(self, model, dataset, config, optimizer_name: str = "muon"):
@@ -55,24 +63,15 @@ class Trainer:
         self.dataset = dataset
         self.config = config
 
-        # Use Muon optimizer for better training stability and faster convergence
-        # Muon uses momentum SGD for 2D matrices and Adam for 1D/embedding params
-        if optimizer_name.lower() == "muon":
-            self.optimizer = Muon(
-                model.parameters(),
-                lr=config.learning_rate,
-                momentum=0.95,
-                nesterov=True,
-                wd=0.1,  # Weight decay
-                lr_1d=0.1,  # Lower LR for 1D/embedding params
-            )
-        else:
-            # Fallback to AdamW if specified
-            self.optimizer = torch.optim.AdamW(
-                model.parameters(),
-                lr=config.learning_rate,
-                weight_decay=0.1,
-            )
+        # Optimizer (Muon or AdamW) wired to config hyperparameters
+        self.optimizer = get_optimizer(
+            model,
+            optimizer_name=optimizer_name,
+            learning_rate=config.learning_rate,
+            weight_decay=config.weight_decay,
+            momentum=config.momentum,
+            lr_1d=config.lr_1d,
+        )
 
         # Training state
         self.iterations = 0
@@ -87,6 +86,29 @@ class Trainer:
         Path(config.losses_dir).mkdir(parents=True, exist_ok=True)
         Path(config.best_model_dir).mkdir(parents=True, exist_ok=True)
 
+        # Initialize W&B (offline mode if not logged in)
+        run_name = f"kanyegpt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        try:
+            wandb.init(
+                project="kanyegpt",
+                name=run_name,
+                config={
+                    'batch_size': config.batch_size,
+                    'block_size': config.block_size,
+                    'learning_rate': config.learning_rate,
+                    'n_embd': config.n_embd,
+                    'n_head': config.n_head,
+                    'n_layer': config.n_layer,
+                    'dropout': config.dropout,
+                    'optimizer': config.optimizer,
+                    'max_iters': config.max_iters,
+                }
+            )
+            self.use_wandb = True
+        except Exception as e:
+            print(f"Warning: W&B not available ({e}). Training without W&B logging.")
+            self.use_wandb = False
+
     def train_step(self) -> float:
         """Single training step."""
         self.model.train()
@@ -100,6 +122,7 @@ class Trainer:
         # Backward pass
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
         self.optimizer.step()
 
         return loss.item()
@@ -112,14 +135,15 @@ class Trainer:
         )
 
     def log_step_loss(self, loss: float):
-        """Log and save loss for every training step."""
+        """Log loss for every training step (W&B handles persistence)."""
         self.train_losses.append(loss)
+
+        # Log to W&B (if available)
+        if self.use_wandb:
+            wandb.log({'train_loss': loss}, step=self.iterations)
 
         # Log to console (every step - may be verbose)
         print(f"Step {self.iterations:4d} | Train Loss: {loss:.4f}")
-
-        # Persist losses to file after every step
-        self.save_losses()
 
     def save_losses(self):
         """Save all accumulated losses to JSON file."""
@@ -172,6 +196,8 @@ class Trainer:
         print(f"Vocabulary size: {self.dataset.tokenizer.vocab_size}")
         print(f"Losses will be saved to: {self.config.losses_dir}/losses.json")
         print(f"Best models will be saved to: {self.config.best_model_dir}/")
+        if self.use_wandb:
+            print(f"W&B run: {wandb.run.url}")
         print_separator()
 
         for iter in range(self.config.max_iters):
@@ -183,11 +209,23 @@ class Trainer:
 
             # Periodic evaluation
             if iter % self.config.eval_interval == 0 or iter == self.config.max_iters - 1:
+                print(f"\n{'─'*60}")
+                print(f"  📊 Evaluation at step {iter}")
+                print(f"{'─'*60}")
                 losses = self.evaluate()
                 train_loss = losses['train']
                 val_loss = losses['val']
 
-                print(f"  └─ Eval | Train: {train_loss:.4f} | Val: {val_loss:.4f}")
+                print(f"  Train Loss: {train_loss:.4f}")
+                print(f"  Val Loss:   {val_loss:.4f}")
+                print(f"{'─'*60}\n")
+
+                # Log to W&B (if available)
+                if self.use_wandb:
+                    wandb.log({
+                        'eval/train_loss': train_loss,
+                        'eval/val_loss': val_loss,
+                    }, step=iter)
 
                 # Track validation losses
                 self.val_losses.append(val_loss)
@@ -202,9 +240,9 @@ class Trainer:
         print(f"Final | Train Loss: {losses['train']:.4f} | Val Loss: {losses['val']:.4f}")
         print(f"Best validation loss: {self.best_val_loss:.4f}")
 
-        # Save final losses
-        self.save_losses()
-        print(f"\nLoss data saved to: {self.config.losses_dir}/losses.json")
+        # Finish W&B run
+        if self.use_wandb:
+            wandb.finish()
 
     def save_checkpoint(self, path: str):
         """Save model state."""
@@ -275,8 +313,13 @@ def main():
     print("-" * 60)
 
     print_section("All Done!")
+
+    # Save final model
+    trainer.save_checkpoint(config.model_path)
     print(f"Model saved to: {config.model_path}")
     print(f"Tokenizer saved to: {config.meta_path}")
+    if trainer.use_wandb and wandb.run is not None:
+        print(f"View W&B dashboard: {wandb.run.url}")
 
 
 if __name__ == "__main__":
