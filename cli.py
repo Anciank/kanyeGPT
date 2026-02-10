@@ -70,7 +70,7 @@ def print_help():
     print("\nAvailable Commands:")
     print("  g, generate     Generate lyrics")
     print("  t <value>, temp <value>    Set temperature (0.1-2.0, default 0.8)")
-    print("  l <value>, len <value>     Set output length (50-500, default 150)")
+    print("  l <value>, len <value>     Set output length (50-2000, default 150)")
     print("  s <text>, seed <text>     Set seed text for guided generation")
     print("  c, clear         Clear seed text")
     print("  p, params        Show current parameters")
@@ -166,11 +166,11 @@ class KanyeCLI:
         """Set output length."""
         try:
             length = int(value)
-            if 50 <= length <= 500:
+            if 50 <= length <= 2000:
                 self.length = length
                 print("Length set to", self.length, "tokens\n")
             else:
-                print("Error: Length must be between 50 and 500\n")
+                print("Error: Length must be between 50 and 2000\n")
         except ValueError:
             print("Error: Invalid length value\n")
 
