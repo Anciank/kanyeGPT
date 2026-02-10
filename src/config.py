@@ -24,7 +24,7 @@ class PreTrainConfig:
     batch_size: int = 32
     block_size: int = 256
     max_iters: int = 3000
-    learning_rate: float = 6e-4
+    learning_rate: float = 3e-4
     eval_interval: int = 200
     eval_iters: int = 200
     # Early stopping
