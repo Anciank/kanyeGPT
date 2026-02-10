@@ -15,6 +15,7 @@ wheels/
 
 # Model checkpoints and training artifacts
 *.pth
+*.pkl
 models/best/
 models/losses/
 
