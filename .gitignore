@@ -8,3 +8,18 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment secrets
+.env
+.env.local
+
+# Model checkpoints and training artifacts
+*.pth
+models/best/
+models/losses/
+
+# Weights & Biases
+wandb/
+
+# TensorBoard logs
+runs/

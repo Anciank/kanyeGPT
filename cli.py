@@ -60,7 +60,7 @@ def print_banner():
 ╚════════════════════════════════════════════════════════════╝
     """
     print(banner)
-    print("Base Model: models/kanye_base.pth")
+    print("Base Model: models/best/best_iter_1000.pth")
     print("Vocabulary: 96 characters | 636K parameters")
     print()
 
@@ -258,7 +258,7 @@ class KanyeCLI:
 def main():
     """Main entry point."""
     # Check if model exists
-    model_path = 'models/kanye_base.pth'
+    model_path = 'models/best/best_iter_1000.pth'
     meta_path = 'models/meta.pkl'
 
     if not Path(model_path).exists():

@@ -200,6 +200,9 @@ class Trainer:
             print(f"W&B run: {wandb.run.url}")
         print_separator()
 
+        no_improve_count = 0
+        early_stopped = False
+
         for iter in range(self.config.max_iters):
             self.iterations = iter
 
@@ -232,13 +235,33 @@ class Trainer:
                 self.val_iterations.append(iter)
 
                 # Save best model
+                prev_best = self.best_val_loss
                 self.save_best_model(val_loss)
+
+                # Early stopping based on validation improvement
+                if self.config.early_stop_patience > 0:
+                    improved = val_loss < (prev_best - self.config.early_stop_min_delta)
+                    if improved:
+                        no_improve_count = 0
+                    else:
+                        no_improve_count += 1
+
+                    if no_improve_count >= self.config.early_stop_patience:
+                        early_stopped = True
+                        print(
+                            f"Early stopping at step {iter}: "
+                            f"no val improvement >= {self.config.early_stop_min_delta:.2f} "
+                            f"for {self.config.early_stop_patience} evals."
+                        )
+                        break
 
         # Final evaluation
         print_section("Training Complete!")
         losses = self.evaluate()
         print(f"Final | Train Loss: {losses['train']:.4f} | Val Loss: {losses['val']:.4f}")
         print(f"Best validation loss: {self.best_val_loss:.4f}")
+        if early_stopped:
+            print("Training stopped early due to plateaued validation loss.")
 
         # Finish W&B run
         if self.use_wandb:

@@ -16,17 +16,20 @@ class PreTrainConfig:
     """Hyperparameters for pre-training phase."""
 
     # Training
-    batch_size: int = 64
-    block_size: int = 64
+    batch_size: int = 32
+    block_size: int = 256
     max_iters: int = 3000
     learning_rate: float = 6e-4
-    eval_interval: int = 500
+    eval_interval: int = 200
     eval_iters: int = 200
+    # Early stopping
+    early_stop_patience: int = 4
+    early_stop_min_delta: float = 0.01
 
     # Model architecture
-    n_embd: int = 64
-    n_head: int = 2
-    n_layer: int = 2
+    n_embd: int = 256
+    n_head: int = 8
+    n_layer: int = 6
     dropout: float = 0.0  # Reduced from 0.2 - modern LLMs use little/no dropout
 
     # Optimizer settings (Muon)
@@ -39,7 +42,7 @@ class PreTrainConfig:
     device: str = 'cpu'
 
     # Paths
-    data_path: str = 'kanye_raw.txt'
+    data_path: str = 'dataset_large.txt'
     model_path: str = 'models/kanye_base.pth'
     meta_path: str = 'models/meta.pkl'
     losses_dir: str = 'models/losses'
