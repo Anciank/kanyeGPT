@@ -54,18 +54,9 @@ class PreTrainConfig:
     best_model_dir: str = 'models/best'
 
     def __post_init__(self):
-        """Set device after initialization.
-
-        Priority: CUDA (NVIDIA GPU) > MPS (Apple Silicon) > CPU
-        """
+        """Set device after initialization."""
         import torch
-        if torch.cuda.is_available():
-            device = 'cuda'
-        elif torch.backends.mps.is_available():
-            device = 'mps'
-        else:
-            device = 'cpu'
-        object.__setattr__(self, 'device', device)
+        object.__setattr__(self, 'device', 'mps' if torch.backends.mps.is_available() else 'cpu')
 
 
 @dataclass(frozen=True)

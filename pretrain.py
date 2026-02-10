@@ -156,6 +156,7 @@ class Trainer:
         }
 
         loss_file = Path(self.config.losses_dir) / 'losses.json'
+        loss_file.parent.mkdir(parents=True, exist_ok=True)
         with open(loss_file, 'w') as f:
             json.dump(loss_data, f, indent=2)
 
@@ -166,6 +167,7 @@ class Trainer:
 
             # Save with iteration number in filename
             model_path = Path(self.config.best_model_dir) / f'best_iter_{self.iterations}.pth'
+            model_path.parent.mkdir(parents=True, exist_ok=True)
 
             torch.save({
                 'model_state_dict': self.model.state_dict(),
@@ -270,7 +272,7 @@ class Trainer:
     def save_checkpoint(self, path: str):
         """Save model state."""
         # Ensure models directory exists
-        Path(path).parent.mkdir(exist_ok=True)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
 
         torch.save({
             'model_state_dict': self.model.state_dict(),
