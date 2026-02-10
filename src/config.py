@@ -4,8 +4,13 @@ from dataclasses import dataclass
 
 
 def _get_device() -> str:
-    """Get the best available device for training."""
+    """Get the best available device for training.
+
+    Priority: CUDA (NVIDIA GPU) > MPS (Apple Silicon) > CPU
+    """
     import torch
+    if torch.cuda.is_available():
+        return 'cuda'
     if torch.backends.mps.is_available():
         return 'mps'
     return 'cpu'
@@ -49,9 +54,18 @@ class PreTrainConfig:
     best_model_dir: str = 'models/best'
 
     def __post_init__(self):
-        """Set device after initialization."""
+        """Set device after initialization.
+
+        Priority: CUDA (NVIDIA GPU) > MPS (Apple Silicon) > CPU
+        """
         import torch
-        object.__setattr__(self, 'device', 'mps' if torch.backends.mps.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            device = 'cuda'
+        elif torch.backends.mps.is_available():
+            device = 'mps'
+        else:
+            device = 'cpu'
+        object.__setattr__(self, 'device', device)
 
 
 @dataclass(frozen=True)
