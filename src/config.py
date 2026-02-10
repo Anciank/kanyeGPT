@@ -55,8 +55,7 @@ class PreTrainConfig:
 
     def __post_init__(self):
         """Set device after initialization."""
-        import torch
-        object.__setattr__(self, 'device', 'mps' if torch.backends.mps.is_available() else 'cpu')
+        object.__setattr__(self, 'device', _get_device())
 
 
 @dataclass(frozen=True)
